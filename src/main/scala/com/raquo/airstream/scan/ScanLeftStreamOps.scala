@@ -87,7 +87,9 @@ trait ScanLeftStreamOps[+A] extends ScanLeftOps[Signal, EventStream, A] {
     zipWithIndex(
       from = from,
       resetOnStop = resetOnStop,
-    ).collect { case (value, index) if passes(index) => value }
+    ).collect {
+      case (value, index) if passes(index) => value
+    }
   }
 
   @deprecated("foldLeft was renamed to scanLeft", "15.0.0-M1")
