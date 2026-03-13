@@ -73,6 +73,23 @@ trait ScanLeftStreamOps[+A] extends ScanLeftOps[Signal, EventStream, A] {
     ).updates.collect { case Some(value) => value }
   }
 
+  /** Filters events based on their ordered index instead of their value. Errors don't increment this index.
+    *
+    * @param passes      The condition each event's index must satisfy to remain in the stream.
+    * @param from        The index of the first event.
+    * @param resetOnStop Whether to reset the index to `from` when this parent is restarted.
+    */
+  def filterByIndex(
+    passes: Int => Boolean,
+    from: Int = 0,
+    resetOnStop: Boolean = false,
+   ): EventStream[A] = {
+    zipWithIndex(
+      from = from,
+      resetOnStop = resetOnStop,
+    ).collect { case (value, index) if passes(index) => value }
+  }
+
   @deprecated("foldLeft was renamed to scanLeft", "15.0.0-M1")
   def foldLeft[B](initial: B)(fn: (B, A) => B): Signal[B] = {
     scanLeft(initial)(fn)

@@ -1,6 +1,7 @@
 package com.raquo.airstream.scan
 
 import com.raquo.airstream.core.Observable
+import com.raquo.airstream.map.MapOps
 
 import scala.util.{Failure, Success, Try}
 
@@ -11,7 +12,11 @@ import scala.util.{Failure, Success, Try}
   * @tparam A          The type of value emitted by this observable.
   * @see               [[ScanLeftSignalOps]], [[ScanLeftStreamOps]]
   */
-trait ScanLeftOps[+ScanSelf[+B] <: Observable[B], +ReduceSelf[+B] <: Observable[B], +A] {
+trait ScanLeftOps[
+  +ScanSelf[+B] <: Observable[B],
+  +ReduceSelf[+B] <: Observable[B],
+  +A
+] extends MapOps[({ type L[B] = ScanLeftOps[ScanSelf, ReduceSelf, B] })#L, A] {
 
   /** Accumulates all events or updates from this parent using `combine`.
     * Produces an [[Observable]] that emits the accumulated value every time this parent emits.
@@ -59,7 +64,7 @@ trait ScanLeftOps[+ScanSelf[+B] <: Observable[B], +ReduceSelf[+B] <: Observable[
     combine: (Try[B], Try[A]) => Try[B],
   ): ScanSelf[B]
 
-  /**Accumulates all events or updates from this parent using `combine`.
+  /** Accumulates all events or updates from this parent using `combine`.
     * Produces an [[Observable]] that emits the accumulated value every time this parent emits.
     *
     * @param resetOnStop Whether to reset the accumulator when this parent is restarted.
@@ -73,6 +78,44 @@ trait ScanLeftOps[+ScanSelf[+B] <: Observable[B], +ReduceSelf[+B] <: Observable[
     resetOnStop: Boolean = false,
     skipErrors: Boolean = false,
   ): ReduceSelf[B]
+
+  /** Counts the total number of events or updates emitted by this parent, excluding errors.
+    *
+    * @param from        From where to start the count.
+   *  @param resetOnStop Whether to reset the total to `from` when this parent is restarted.
+    */
+  def count(
+    from: Int = 0,
+    resetOnStop: Boolean = false,
+  ): ScanSelf[Int] = {
+    scanLeft[Int](
+      initial = from,
+      resetOnStop = resetOnStop,
+      skipErrors = true,
+    ) { (total, _) => total + 1 }
+  }
+
+  /** Counts the total number of events or updates emitted by this parent, excluding errors. */
+  @inline def count: ScanSelf[Int] = count()
+
+  /** Pairs each event or update with its ordered index. Errors don't increment this index.
+    *
+    * @param from        The index of the first event (for streams) or initial value (for signals).
+    * @param resetOnStop Whether to reset the index to `from` when this parent is restarted.
+    */
+  def zipWithIndex(
+    from: Int = 0,
+    resetOnStop: Boolean = false,
+  ): ReduceSelf[(A, Int)] = {
+    map((_, from)).reduceLeft[(A, Int)](
+      { case ((_, index), (next, _)) => (next, index + 1) },
+      resetOnStop = resetOnStop,
+      skipErrors = true,
+    )
+  }
+
+  /** Pairs each event or update with its ordered index. Errors don't increment this index. */
+  @inline def zipWithIndex: ReduceSelf[(A, Int)] = zipWithIndex()
 
   /** Convert a reduction function into one that is error-aware and keeps all errors. */
   protected def keepErrors[X, Y](combine: (Y, X) => Y): (Try[Y], Try[X]) => Try[Y] = {
